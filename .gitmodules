@@ -7,3 +7,6 @@
 [submodule "ibc-go"]
 	path = ibc-go
 	url = https://github.com/cosmos/ibc-go
+[submodule "fairyring"]
+	path = fairyring
+	url = https://github.com/Fairblock/fairyring

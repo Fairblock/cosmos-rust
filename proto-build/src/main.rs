@@ -28,6 +28,9 @@ const IBC_REV: &str = "v3.0.0";
 /// The wasmd commit or tag to be cloned and used to build the proto files
 const WASMD_REV: &str = "v0.29.2";
 
+/// The fairyring commit or tag to be cloned and used to build the proto files
+const FAIRYRING_REV: &str = "v0.6.0";
+
 // All paths must end with a / and either be absolute or include a ./ to reference the current
 // working directory.
 
@@ -39,6 +42,9 @@ const COSMOS_SDK_DIR: &str = "../cosmos-sdk-go";
 const IBC_DIR: &str = "../ibc-go";
 /// Directory where the submodule is located
 const WASMD_DIR: &str = "../wasmd";
+
+const FAIRYRING_DIR: &str = "../fairyring";
+
 /// A temporary directory for proto building
 const TMP_BUILD_DIR: &str = "/tmp/tmp-protobuf/";
 
@@ -76,22 +82,27 @@ fn main() {
     let temp_sdk_dir = tmp_build_dir.join("cosmos-sdk");
     let temp_ibc_dir = tmp_build_dir.join("ibc-go");
     let temp_wasmd_dir = tmp_build_dir.join("wasmd");
+    let temp_fairyring_dir = tmp_build_dir.join("fairyring");
 
     fs::create_dir_all(&temp_sdk_dir).unwrap();
     fs::create_dir_all(&temp_ibc_dir).unwrap();
     fs::create_dir_all(&temp_wasmd_dir).unwrap();
+    fs::create_dir_all(&temp_fairyring_dir).unwrap();
 
     update_submodules();
     output_sdk_version(&temp_sdk_dir);
     output_ibc_version(&temp_ibc_dir);
     output_wasmd_version(&temp_wasmd_dir);
+    output_fairyring_version(&temp_fairyring_dir);
     compile_sdk_protos_and_services(&temp_sdk_dir);
     compile_ibc_protos_and_services(&temp_ibc_dir);
     compile_wasmd_proto_and_services(&temp_wasmd_dir);
+    compile_fairyring_proto_and_service(&temp_fairyring_dir);
 
     copy_generated_files(&temp_sdk_dir, &proto_dir.join("cosmos-sdk"));
     copy_generated_files(&temp_ibc_dir, &proto_dir.join("ibc-go"));
     copy_generated_files(&temp_wasmd_dir, &proto_dir.join("wasmd"));
+    copy_generated_files(&temp_fairyring_dir, &proto_dir.join("fairyring"));
 
     apply_patches(&proto_dir);
 
@@ -199,6 +210,11 @@ fn update_submodules() {
     run_git(["submodule", "update", "--init"]);
     run_git(["-C", WASMD_DIR, "fetch"]);
     run_git(["-C", WASMD_DIR, "reset", "--hard", WASMD_REV]);
+
+    info!("Updating fairyring submodule...");
+    run_git(["submodule", "update", "--init"]);
+    run_git(["-C", FAIRYRING_DIR, "fetch"]);
+    run_git(["-C", FAIRYRING_DIR, "reset", "--hard", FAIRYRING_REV]);
 }
 
 fn output_sdk_version(out_dir: &Path) {
@@ -216,6 +232,11 @@ fn output_wasmd_version(out_dir: &Path) {
     fs::write(path, WASMD_REV).unwrap();
 }
 
+fn output_fairyring_version(out_dir: &Path) {
+    let path = out_dir.join("FAIRYRING_COMMIT");
+    fs::write(path, FAIRYRING_REV).unwrap();
+}
+
 fn compile_sdk_protos_and_services(out_dir: &Path) {
     info!(
         "Compiling cosmos-sdk .proto files to Rust into '{}'...",
@@ -226,6 +247,25 @@ fn compile_sdk_protos_and_services(out_dir: &Path) {
     info!("Compiling proto definitions and clients for GRPC services!");
     let proto_path = Path::new(COSMOS_SDK_DIR).join("proto");
     run_buf("buf.sdk.gen.yaml", proto_path, out_dir);
+    info!("=> Done!");
+}
+
+fn compile_fairyring_proto_and_service(out_dir: &Path) {
+    let sdk_dir = Path::new(FAIRYRING_DIR);
+    let proto_path = sdk_dir.join("proto");
+    let proto_paths = [
+        format!("{}/proto/fairyring/common", sdk_dir.display()),
+        format!("{}/proto/fairyring/keyshare", sdk_dir.display()),
+        format!("{}/proto/fairyring/pep", sdk_dir.display())
+    ];
+
+    // List available proto files
+    let mut protos: Vec<PathBuf> = vec![];
+    collect_protos(&proto_paths, &mut protos);
+
+    // Compile all proto client for GRPC services
+    info!("Compiling fairyring proto clients");
+    run_buf("buf.wasmd.gen.yaml", proto_path, out_dir);
     info!("=> Done!");
 }
 
